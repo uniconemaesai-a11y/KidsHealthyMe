@@ -82,6 +82,23 @@ export interface UserItem {
   acquired_at: string;
 }
 
+export interface Friend {
+  id: string;
+  user_id: string;
+  friend_id: string;
+  created_at: string;
+}
+
+export interface SocialAction {
+  id: string;
+  from_user_id: string;
+  to_user_id: string;
+  action_type: 'sticker' | 'heart';
+  content: string;
+  is_read: boolean;
+  created_at: string;
+}
+
 export interface DailyQuest {
   id: string;
   title: string;

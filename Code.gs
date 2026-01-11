@@ -1,7 +1,7 @@
 
 /**
  * KidsHealthyMe - Complete Unified Backend (Code.gs)
- * Version: 2.3 (Admin Shop CRUD Update)
+ * Version: 2.4 (Social & Friends Update)
  */
 
 const SPREADSHEET_ID = '1Y_qsmBerbRpPQdIo5ct0xni0VLoIQJ-C-r9FfRNM7Q8';
@@ -20,7 +20,9 @@ function setupDatabase() {
     'box_logs': ['id', 'user_id', 'date', 'item_name'],
     'user_items': ['id', 'user_id', 'item_id', 'is_equipped', 'acquired_at'],
     'shop_rewards': ['id', 'title', 'cost', 'stock', 'icon', 'description'],
-    'redemptions': ['id', 'user_id', 'reward_id', 'status', 'claimed_at', 'code']
+    'redemptions': ['id', 'user_id', 'reward_id', 'status', 'claimed_at', 'code'],
+    'friends': ['id', 'user_id', 'friend_id', 'created_at'],
+    'social_actions': ['id', 'from_user_id', 'to_user_id', 'action_type', 'content', 'is_read', 'created_at']
   };
 
   for (let sheetName in structures) {
@@ -70,6 +72,12 @@ function doGet(e) {
       case 'equipItem': result = equipItem(payload.userId, payload.itemId); break;
       case 'updateBaseEmoji': result = updateBaseEmoji(payload.userId, payload.emoji); break;
       case 'updateAvatarStats': result = updateAvatarStats(payload.userId, payload.expGain); break;
+      case 'getFriends': result = { success: true, friends: getFriends(payload.userId) }; break;
+      case 'addFriend': result = addFriend(payload.userId, payload.friendId); break;
+      case 'removeFriend': result = removeFriend(payload.userId, payload.friendId); break;
+      case 'sendSocialAction': result = sendSocialAction(payload); break;
+      case 'getSocialActions': result = { success: true, actions: getSocialActions(payload.userId) }; break;
+      case 'markActionsAsRead': result = markActionsAsRead(payload.userId); break;
       default: result = { success: false, message: 'Action not found: ' + action };
     }
   } catch (err) {
@@ -93,6 +101,99 @@ function getSheetSafe(name) {
   }
   return sheet;
 }
+
+// --- FRIEND & SOCIAL FUNCTIONS ---
+
+function getFriends(userId) {
+  const sheet = getSheetSafe('friends');
+  const avatars = getSheetSafe('avatar').getDataRange().getValues();
+  const users = getSheetSafe('users').getDataRange().getValues();
+  const data = sheet.getDataRange().getValues();
+  
+  const friendIds = data.slice(1)
+    .filter(row => String(row[1]) === String(userId))
+    .map(row => String(row[2]));
+    
+  return friendIds.map(fid => {
+    const avatar = avatars.find(a => String(a[1]) === fid);
+    const user = users.find(u => String(u[0]) === fid);
+    if (!avatar || !user) return null;
+    return {
+      user_id: fid,
+      fullname: String(user[4]),
+      level: Number(avatar[3]),
+      base_emoji: String(avatar[9] || '🧑‍🚀')
+    };
+  }).filter(f => f !== null);
+}
+
+function addFriend(userId, friendId) {
+  const sheet = getSheetSafe('friends');
+  const data = sheet.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][1]) === String(userId) && String(data[i][2]) === String(friendId)) {
+      return { success: true, message: "Already friends" };
+    }
+  }
+  sheet.appendRow(['FR-' + Utilities.getUuid().substr(0, 8), userId, friendId, new Date().toISOString()]);
+  return { success: true };
+}
+
+function removeFriend(userId, friendId) {
+  const sheet = getSheetSafe('friends');
+  const data = sheet.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][1]) === String(userId) && String(data[i][2]) === String(friendId)) {
+      sheet.deleteRow(i + 1);
+      return { success: true };
+    }
+  }
+  return { success: false };
+}
+
+function sendSocialAction(payload) {
+  const sheet = getSheetSafe('social_actions');
+  const actionId = 'SA-' + Utilities.getUuid().substr(0, 8);
+  sheet.appendRow([
+    actionId, 
+    payload.from_user_id, 
+    payload.to_user_id, 
+    payload.action_type, 
+    payload.content, 
+    false, 
+    new Date().toISOString()
+  ]);
+  
+  // Bonus EXP for encouraging friends
+  updateAvatarStats(payload.from_user_id, 5); // 5 EXP for sender
+  updateAvatarStats(payload.to_user_id, 2);   // 2 EXP for receiver
+  
+  return { success: true };
+}
+
+function getSocialActions(userId) {
+  const sheet = getSheetSafe('social_actions');
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+  return data.slice(1)
+    .filter(row => String(row[2]) === String(userId))
+    .map(row => {
+      let obj = {}; headers.forEach((h, idx) => obj[h] = row[idx]); return obj;
+    }).slice(-20); // Last 20 actions
+}
+
+function markActionsAsRead(userId) {
+  const sheet = getSheetSafe('social_actions');
+  const data = sheet.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][2]) === String(userId) && data[i][5] === false) {
+      sheet.getRange(i + 1, 6).setValue(true);
+    }
+  }
+  return { success: true };
+}
+
+// --- EXISTING FUNCTIONS ---
 
 function getQuizPool() {
   const sheet = getSheetSafe('quiz_questions');
@@ -271,7 +372,7 @@ function saveHealthLog(data) {
     const logId = 'LOG-' + Utilities.getUuid().substr(0, 8);
     sheet.appendRow([
       logId, data.user_id, today.toISOString(), 
-      JSON.stringify(data.missions), data.mood, data.water_glasses,
+      data.missions, data.mood, data.water_glasses,
       data.sleep_start, data.sleep_end, data.sleep_hours,
       data.exercise_activity, data.exercise_minutes, data.sickness,
       data.height, data.weight, data.bmi, data.steps, data.vegetable_score
@@ -361,7 +462,6 @@ function getLeaderboardData(className) {
     };
   }).filter(u => u !== null);
 
-  // Filter by class if provided
   if (className) {
     result = result.filter(u => u.class === className);
   }

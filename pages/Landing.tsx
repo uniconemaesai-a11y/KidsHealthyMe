@@ -40,6 +40,13 @@ const Landing: React.FC = () => {
     <div className="max-w-6xl mx-auto space-y-16 py-10 px-4">
       {/* Hero Section */}
       <section className="text-center space-y-6">
+        <div className="w-32 h-32 bg-white rounded-[2.5rem] flex items-center justify-center mx-auto mb-8 shadow-2xl p-3 border-4 border-slate-50 transform hover:scale-110 transition-transform">
+          <img 
+            src="https://img5.pic.in.th/file/secure-sv1/-4c31bfe664e96786c.png" 
+            alt="KidsHealthyMe Logo" 
+            className="w-full h-full object-contain"
+          />
+        </div>
         <div className="inline-flex items-center gap-2 bg-white px-4 py-2 rounded-full shadow-sm border border-blue-100 animate-bounce">
           <Sparkles className="text-yellow-400" size={18} />
           <span className="text-blue-600 font-bold text-sm">ยินดีต้อนรับสู่ KidsHealthyMe</span>

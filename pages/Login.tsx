@@ -113,9 +113,9 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   };
 
   const modeThemes = {
-    student: { color: "blue", icon: "🦁", title: "นักเรียนเข้าสู่ระบบ" },
-    parent: { color: "pink", icon: "💖", title: "ผู้ปกครองเข้าสู่ระบบ" },
-    admin: { color: "emerald", icon: "🏫", title: "ผู้ดูแลเข้าสู่ระบบ" },
+    student: { color: "blue", title: "นักเรียนเข้าสู่ระบบ" },
+    parent: { color: "pink", title: "ผู้ปกครองเข้าสู่ระบบ" },
+    admin: { color: "emerald", title: "ผู้ดูแลเข้าสู่ระบบ" },
   };
 
   const currentTheme = modeThemes[mode];
@@ -152,8 +152,12 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       </div>
 
       <div className="text-center mb-8 relative z-10">
-        <div className={`w-20 h-20 bg-${currentTheme.color}-100 rounded-[2rem] flex items-center justify-center text-4xl mx-auto mb-4 animate-bounce`}>
-          {currentTheme.icon}
+        <div className="w-24 h-24 bg-white rounded-[2.5rem] flex items-center justify-center mx-auto mb-4 animate-bounce shadow-xl p-2 border-4 border-slate-50">
+          <img 
+            src="https://img5.pic.in.th/file/secure-sv1/-4c31bfe664e96786c.png" 
+            alt="KidsHealthyMe Logo" 
+            className="w-full h-full object-contain"
+          />
         </div>
         <h1 className={`text-3xl font-black text-${currentTheme.color === 'pink' ? 'pink' : currentTheme.color === 'emerald' ? 'emerald' : 'blue'}-600`}>{currentTheme.title}</h1>
       </div>

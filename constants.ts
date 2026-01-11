@@ -12,6 +12,17 @@ export const COLORS = {
   pastelGreen: '#BDE0FE',
 };
 
+export const ENCOURAGING_STICKERS = [
+  { id: 's1', emoji: '🌟', text: 'นายเก่งมาก!' },
+  { id: 's2', emoji: '💪', text: 'พยายามเข้านะ' },
+  { id: 's3', emoji: '🥗', text: 'กินผักด้วยล่ะ' },
+  { id: 's4', emoji: '🍎', text: 'สุขภาพดีสุดยอด' },
+  { id: 's5', emoji: '🔥', text: 'ไฟลุกเลยเพื่อน' },
+  { id: 's6', emoji: '🌈', text: 'ขอให้มีความสุข' },
+  { id: 's7', emoji: '🏆', text: 'ฮีโร่ตัวจริง!' },
+  { id: 's8', emoji: '❤️', text: 'เป็นกำลังใจให้' },
+];
+
 export const EMOJI_POOL = {
   heroes: ['🧑‍🚀', '🦸', '🥷', '🧙', '🧝', '🤖', '🐯', '🐼', '🦁', '🦊', '🐱', '🐶', '🦄'],
   items: ['⚔️', '🛡️', '🪄', '🏹', '🎒', '🕶️', '🧢', '👟', '🧥', '🧤', '💍', '💎'],

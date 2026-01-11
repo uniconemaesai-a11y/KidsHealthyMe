@@ -43,7 +43,7 @@ const App: React.FC = () => {
 
   return (
     <Router>
-      <div className="min-h-screen flex flex-col bg-[#f0f9ff]">
+      <div className="min-h-screen flex flex-col bg-transparent">
         {user && <Navbar user={user} viewMode={viewMode} onLogout={handleLogout} />}
         <main className="flex-grow container mx-auto px-4 py-6">
           <Routes>
@@ -68,13 +68,13 @@ const App: React.FC = () => {
           </Routes>
         </main>
         
-        <footer className="bg-white/80 backdrop-blur-md p-6 text-center text-xs text-slate-400 mt-auto border-t border-slate-100">
+        <footer className="bg-white/60 backdrop-blur-md p-6 text-center text-xs text-slate-500 mt-auto border-t border-white/20">
           <div className="flex justify-center gap-4 mb-2">
-            <span className="bg-blue-50 text-blue-500 px-2 py-1 rounded">#EduTech</span>
-            <span className="bg-pink-50 text-pink-500 px-2 py-1 rounded">#KidsHealth</span>
-            <span className="bg-emerald-50 text-emerald-500 px-2 py-1 rounded">#SEL</span>
+            <span className="bg-blue-100/50 text-blue-600 px-2 py-1 rounded">#EduTech</span>
+            <span className="bg-pink-100/50 text-pink-600 px-2 py-1 rounded">#KidsHealth</span>
+            <span className="bg-emerald-100/50 text-emerald-600 px-2 py-1 rounded">#SEL</span>
           </div>
-          KidsHealthyMe v1.2 | นวัตกรรมเพื่อการวิจัยเทคโนโลยีการศึกษา
+          <p className="font-bold drop-shadow-sm">KidsHealthyMe v1.2 | นวัตกรรมเพื่อการวิจัยเทคโนโลยีการศึกษา</p>
         </footer>
       </div>
     </Router>

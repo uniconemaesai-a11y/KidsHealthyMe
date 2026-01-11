@@ -63,18 +63,25 @@ const Register: React.FC<RegisterProps> = ({ onLogin }) => {
   };
 
   return (
-    <div className="max-w-2xl mx-auto p-8 bg-white rounded-3xl shadow-xl border border-cyan-50">
+    <div className="max-w-2xl mx-auto p-8 bg-white rounded-[3rem] shadow-xl border-8 border-white">
       <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold text-cyan-600">สมัครเป็นสมาชิก KidsHealthyMe</h1>
-        <p className="text-slate-500 mt-2">เริ่มต้นการดูแลสุขภาพแสนสนุกไปพร้อมกัน</p>
+        <div className="w-20 h-20 bg-white rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg p-2 border border-slate-50">
+          <img 
+            src="https://img5.pic.in.th/file/secure-sv1/-4c31bfe664e96786c.png" 
+            alt="KidsHealthyMe Logo" 
+            className="w-full h-full object-contain"
+          />
+        </div>
+        <h1 className="text-3xl font-black text-cyan-600">สมัครสมาชิก KidsHealthyMe</h1>
+        <p className="text-slate-500 mt-2 font-medium">เริ่มต้นการดูแลสุขภาพแสนสนุกไปพร้อมกัน</p>
       </div>
 
       <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="col-span-full md:col-span-1">
-          <label className="block text-sm font-medium text-slate-700 mb-2">ชื่อ-นามสกุล</label>
+          <label className="block text-sm font-black text-slate-700 mb-2">ชื่อ-นามสกุล</label>
           <input
             type="text"
-            className="w-full px-4 py-3 rounded-2xl border border-slate-200 outline-none focus:ring-2 focus:ring-cyan-400"
+            className="w-full px-5 py-4 rounded-2xl border-2 border-slate-100 focus:ring-4 focus:ring-cyan-100 outline-none font-medium transition-all"
             value={formData.fullname}
             onChange={(e) => setFormData({...formData, fullname: e.target.value})}
             required
@@ -83,9 +90,9 @@ const Register: React.FC<RegisterProps> = ({ onLogin }) => {
         </div>
         
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-2">เพศ</label>
+          <label className="block text-sm font-black text-slate-700 mb-2">เพศ</label>
           <select 
-             className="w-full px-4 py-3 rounded-2xl border border-slate-200 outline-none"
+             className="w-full px-5 py-4 rounded-2xl border-2 border-slate-100 outline-none font-medium"
              value={formData.gender}
              onChange={(e) => setFormData({...formData, gender: e.target.value})}
              disabled={loading}
@@ -97,9 +104,9 @@ const Register: React.FC<RegisterProps> = ({ onLogin }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-2">ชั้นปี</label>
+          <label className="block text-sm font-black text-slate-700 mb-2">ชั้นปี</label>
           <select 
-             className="w-full px-4 py-3 rounded-2xl border border-slate-200 outline-none"
+             className="w-full px-5 py-4 rounded-2xl border-2 border-slate-100 outline-none font-medium"
              value={formData.class}
              onChange={(e) => setFormData({...formData, class: e.target.value})}
              disabled={loading}
@@ -110,11 +117,11 @@ const Register: React.FC<RegisterProps> = ({ onLogin }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-2">ห้อง</label>
+          <label className="block text-sm font-black text-slate-700 mb-2">ห้อง</label>
           <input
             type="text"
             placeholder="1"
-            className="w-full px-4 py-3 rounded-2xl border border-slate-200 outline-none focus:ring-2 focus:ring-cyan-400"
+            className="w-full px-5 py-4 rounded-2xl border-2 border-slate-100 focus:ring-4 focus:ring-cyan-100 outline-none font-medium transition-all"
             value={formData.room}
             onChange={(e) => setFormData({...formData, room: e.target.value})}
             required
@@ -123,11 +130,11 @@ const Register: React.FC<RegisterProps> = ({ onLogin }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-2">เลขที่</label>
+          <label className="block text-sm font-black text-slate-700 mb-2">เลขที่</label>
           <input
             type="number"
             placeholder="12"
-            className="w-full px-4 py-3 rounded-2xl border border-slate-200 outline-none focus:ring-2 focus:ring-cyan-400"
+            className="w-full px-5 py-4 rounded-2xl border-2 border-slate-100 focus:ring-4 focus:ring-cyan-100 outline-none font-medium transition-all"
             value={formData.number}
             onChange={(e) => setFormData({...formData, number: e.target.value})}
             required
@@ -135,15 +142,15 @@ const Register: React.FC<RegisterProps> = ({ onLogin }) => {
           />
         </div>
 
-        <div className="col-span-full border-t pt-6 mt-2">
-          <h3 className="font-bold text-slate-700 mb-4 text-center">ข้อมูลการเข้าใช้</h3>
+        <div className="col-span-full border-t border-slate-100 pt-6 mt-2">
+          <h3 className="font-black text-slate-700 mb-4 text-center uppercase tracking-widest text-xs">ข้อมูลการเข้าใช้</h3>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-2">ชื่อผู้ใช้ (Username)</label>
+          <label className="block text-sm font-black text-slate-700 mb-2">ชื่อผู้ใช้ (Username)</label>
           <input
             type="text"
-            className="w-full px-4 py-3 rounded-2xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-400"
+            className="w-full px-5 py-4 rounded-2xl border-2 border-slate-100 focus:ring-4 focus:ring-blue-100 outline-none font-medium transition-all"
             value={formData.username}
             onChange={(e) => setFormData({...formData, username: e.target.value})}
             required
@@ -152,10 +159,10 @@ const Register: React.FC<RegisterProps> = ({ onLogin }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-2">รหัสผ่าน (Password)</label>
+          <label className="block text-sm font-black text-slate-700 mb-2">รหัสผ่าน (Password)</label>
           <input
             type="password"
-            className="w-full px-4 py-3 rounded-2xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-400"
+            className="w-full px-5 py-4 rounded-2xl border-2 border-slate-100 focus:ring-4 focus:ring-blue-100 outline-none font-medium transition-all"
             value={formData.password}
             onChange={(e) => setFormData({...formData, password: e.target.value})}
             required
@@ -166,14 +173,14 @@ const Register: React.FC<RegisterProps> = ({ onLogin }) => {
         <button
           type="submit"
           disabled={loading}
-          className={`col-span-full mt-6 ${loading ? 'bg-slate-300' : 'bg-cyan-500 hover:bg-cyan-600'} text-white font-bold py-4 rounded-2xl shadow-lg transition-all active:scale-[0.98] flex justify-center items-center gap-2`}
+          className={`col-span-full mt-6 ${loading ? 'bg-slate-300' : 'bg-cyan-500 hover:bg-cyan-600'} text-white font-black py-5 rounded-[2rem] shadow-xl transition-all active:scale-[0.98] flex justify-center items-center gap-2`}
         >
           {loading ? 'กำลังเชื่อมต่อ...' : 'สมัครสมาชิกและเริ่มบันทึก! ✨'}
         </button>
       </form>
 
-      <p className="mt-8 text-center text-slate-500">
-        มีบัญชีอยู่แล้ว? <Link to="/login" className="text-cyan-500 font-bold hover:underline">เข้าสู่ระบบตรงนี้</Link>
+      <p className="mt-8 text-center text-slate-500 font-medium">
+        มีบัญชีอยู่แล้ว? <Link to="/login" className="text-cyan-500 font-black hover:underline">เข้าสู่ระบบตรงนี้</Link>
       </p>
     </div>
   );

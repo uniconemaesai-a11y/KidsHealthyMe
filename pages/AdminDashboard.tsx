@@ -1,14 +1,14 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
 import { dbService } from '../services/dbService';
-import { getClassReport, generateQuizQuestions } from '../geminiService';
-import { ShopReward, RedemptionRecord, HealthLog } from '../types';
+import { getClassReport, generateQuizQuestions, getAICoachFeedback } from '../geminiService';
+import { ShopReward, RedemptionRecord, HealthLog, AvatarData } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, AreaChart, Area, Cell, PieChart, Pie } from 'recharts';
-import { Download, Users, Activity, TrendingUp, RefreshCw, ShoppingBag, Plus, Trash2, Check, Clock, X, Brain, AlertCircle, Eye, Info, Sparkles, Gift, Calendar, LayoutGrid, ListFilter, Shield, Settings, Database, MessageSquare, BookOpen, UploadCloud, Wand2, Search, BarChart3, ShieldCheck, Server, Edit2, Package } from 'lucide-react';
+import { Users, Activity, TrendingUp, RefreshCw, ShoppingBag, Plus, Trash2, Check, Clock, X, Brain, AlertCircle, Eye, Info, Sparkles, Gift, Save as SaveIcon, BookOpen, UploadCloud, Wand2, Search, BarChart3, ShieldCheck, Server, Edit2, Package, User as UserIcon, Calendar, Heart, MessageSquare, LayoutGrid, Database, Eraser } from 'lucide-react';
 import Swal from 'sweetalert2';
 
 const AdminDashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'research' | 'shop' | 'quiz' | 'system'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'research' | 'individual' | 'shop' | 'quiz' | 'system'>('overview');
   const [allLogs, setAllLogs] = useState<HealthLog[]>([]);
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
   const [rewards, setRewards] = useState<ShopReward[]>([]);
@@ -20,6 +20,12 @@ const AdminDashboard: React.FC = () => {
   const [syncing, setSyncing] = useState(false);
   const [generatingAI, setGeneratingAI] = useState(false);
   
+  // States for Individual Report
+  const [selectedStudentId, setSelectedStudentId] = useState<string>('');
+  const [studentAvatar, setStudentAvatar] = useState<AvatarData | null>(null);
+  const [studentLogs, setStudentLogs] = useState<HealthLog[]>([]);
+  const [studentAiInsight, setStudentAiInsight] = useState<string>('');
+
   const [bulkInput, setBulkInput] = useState('');
   const [aiTopic, setAiTopic] = useState('');
   const [searchQuiz, setSearchQuiz] = useState('');
@@ -56,7 +62,28 @@ const AdminDashboard: React.FC = () => {
     fetchData();
   }, []);
 
-  // --- AI & QUIZ FUNCTIONS (STABLE) ---
+  // Fetch individual student details when ID changes
+  useEffect(() => {
+    if (activeTab === 'individual' && selectedStudentId) {
+      const fetchStudentDetails = async () => {
+        const student = leaderboard.find(u => u.user_id === selectedStudentId);
+        const logs = allLogs.filter(l => l.user_id === selectedStudentId);
+        setStudentLogs(logs);
+        
+        try {
+          const avatar = await dbService.getAvatar(selectedStudentId);
+          setStudentAvatar(avatar);
+          if (logs.length > 0) {
+             const feedback = await getAICoachFeedback(logs[logs.length-1], logs, avatar.level, student.fullname, true);
+             setStudentAiInsight(feedback);
+          }
+        } catch (e) {}
+      };
+      fetchStudentDetails();
+    }
+  }, [selectedStudentId, activeTab, leaderboard, allLogs]);
+
+  // --- AI & QUIZ FUNCTIONS ---
   const handleAIQuestionGenerate = async () => {
     if (!aiTopic.trim()) {
       Swal.fire('ระบุหัวข้อก่อนจ้า', 'คุณครูอยากให้ AI ช่วยออกข้อสอบเรื่องอะไรครับ?', 'info');
@@ -67,7 +94,15 @@ const AdminDashboard: React.FC = () => {
       const aiResponse = await generateQuizQuestions(aiTopic, 5);
       if (aiResponse) {
         setBulkInput(prev => prev + (prev ? '\n' : '') + aiResponse);
-        Swal.fire({ title: 'AI ร่างข้อสอบสำเร็จ!', text: 'สร้างคำถามให้แล้ว 5 ข้อ ตรวจสอบได้ที่กล่อง Bulk Add', icon: 'success', toast: true, position: 'top-end', timer: 3000 });
+        Swal.fire({ 
+          title: 'AI ร่างข้อสอบสำเร็จ!', 
+          text: 'สร้างคำถามให้แล้ว 5 ข้อ สามารถแก้ไขเพิ่มเติมได้ที่กล่อง Bulk Add', 
+          icon: 'success', 
+          toast: true, 
+          position: 'top-end', 
+          timer: 3000,
+          showConfirmButton: false
+        });
       }
     } catch (e: any) {
       Swal.fire('เกิดข้อผิดพลาด', e.message, 'error');
@@ -78,26 +113,144 @@ const AdminDashboard: React.FC = () => {
 
   const handleBulkAddQuiz = async () => {
     const rawLines = bulkInput.trim().split('\n').filter(line => line.trim());
-    if (rawLines.length === 0) return;
-    const allQuestions = rawLines.map(line => {
+    if (rawLines.length === 0) {
+      Swal.fire('ไม่มีข้อมูล', 'กรุณาระบุคำถาม หรือใช้ AI ช่วยร่างข้อสอบก่อนครับ', 'warning');
+      return;
+    }
+
+    const allQuestions = rawLines.map((line, index) => {
       const parts = line.split('|').map(s => s.trim());
       if (parts.length < 6) return null;
-      return { question: parts[0], option1: parts[1], option2: parts[2], option3: parts[3], option4: parts[4], answer: parseInt(parts[5]), icon: parts[6] || '❓' };
+      return { 
+        question: parts[0], 
+        option1: parts[1], 
+        option2: parts[2], 
+        option3: parts[3], 
+        option4: parts[4], 
+        answer: parseInt(parts[5]), 
+        icon: parts[6] || '❓' 
+      };
     }).filter(q => q !== null);
 
+    if (allQuestions.length === 0) {
+      Swal.fire('ข้อมูลไม่ถูกต้อง', 'กรุณาตรวจสอบรูปแบบข้อมูล: คำถาม | ต1 | ต2 | ต3 | ต4 | คำตอบ(0-3)', 'error');
+      return;
+    }
+
+    const confirm = await Swal.fire({
+      title: 'ยืนยันการบันทึก?',
+      text: `ตรวจพบคำถามที่ถูกต้อง ${allQuestions.length} ข้อ บันทึกลงฐานข้อมูลใช่หรือไม่?`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'บันทึกทั้งหมด',
+      cancelButtonText: 'ตรวจสอบอีกครั้ง'
+    });
+
+    if (confirm.isConfirmed) {
+      setSyncing(true);
+      try {
+        Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        await dbService.saveBulkQuiz(allQuestions);
+        Swal.fire('สำเร็จ!', 'บันทึกคำถามทั้งหมดเรียบร้อยแล้ว', 'success');
+        setBulkInput('');
+        fetchData();
+      } catch (e: any) {
+        Swal.fire('ล้มเหลว', e.message, 'error');
+      } finally { setSyncing(false); }
+    }
+  };
+
+  const handleUpdateRedemptionStatus = async (id: string, status: string) => {
     setSyncing(true);
-    const CHUNK_SIZE = 5;
     try {
-      Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-      for (let i = 0; i < allQuestions.length; i += CHUNK_SIZE) {
-        await dbService.saveBulkQuiz(allQuestions.slice(i, i + CHUNK_SIZE));
-      }
-      Swal.fire('สำเร็จ!', 'บันทึกคำถามทั้งหมดเรียบร้อยแล้ว', 'success');
-      setBulkInput('');
+      await dbService.updateRedemptionStatus(id, status);
+      Swal.fire('สำเร็จ!', 'อัปเดตสถานะแล้ว', 'success');
       fetchData();
     } catch (e: any) {
       Swal.fire('ล้มเหลว', e.message, 'error');
-    } finally { setSyncing(false); }
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleEditReward = (reward: ShopReward) => {
+    setRewardForm(reward);
+    setIsEditingReward(true);
+  };
+
+  const handleDeleteReward = async (id: string) => {
+    const confirm = await Swal.fire({
+      title: 'ยืนยันการลบ?',
+      text: "คุณจะไม่สามารถกู้คืนข้อมูลนี้ได้",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'ลบเลย',
+      cancelButtonText: 'ยกเลิก'
+    });
+    if (confirm.isConfirmed) {
+      setSyncing(true);
+      try {
+        await dbService.deleteShopReward(id);
+        Swal.fire('ลบแล้ว!', 'ลบของรางวัลเรียบร้อย', 'success');
+        fetchData();
+      } catch (e: any) {
+        Swal.fire('ล้มเหลว', e.message, 'error');
+      } finally {
+        setSyncing(false);
+      }
+    }
+  };
+
+  const handleSaveReward = async () => {
+    if (!rewardForm.title) {
+      Swal.fire('ข้อมูลไม่ครบ', 'กรุณาระบุชื่อของรางวัล', 'warning');
+      return;
+    }
+    setSyncing(true);
+    try {
+      await dbService.saveShopReward(rewardForm);
+      Swal.fire('สำเร็จ!', 'บันทึกของรางวัลแล้ว', 'success');
+      setRewardForm({ title: '', cost: 50, stock: 10, icon: '🎁', description: '' });
+      setIsEditingReward(false);
+      fetchData();
+    } catch (e: any) {
+      Swal.fire('ล้มเหลว', e.message, 'error');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleDeleteQuiz = async (id: string) => {
+    const confirm = await Swal.fire({
+      title: 'ยืนยันการลบคำถาม?',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'ลบเลย'
+    });
+    if (confirm.isConfirmed) {
+      setSyncing(true);
+      try {
+        await dbService.deleteQuizQuestion(id);
+        Swal.fire('ลบแล้ว!', 'ลบคำถามเรียบร้อย', 'success');
+        fetchData();
+      } catch (e: any) {
+        Swal.fire('ล้มเหลว', e.message, 'error');
+      } finally {
+        setSyncing(false);
+      }
+    }
+  };
+
+  const handleSetupDatabase = async () => {
+    setSyncing(true);
+    try {
+      await dbService.callJSONP('setupDatabase', {});
+      Swal.fire('สำเร็จ!', 'จัดการโครงสร้าง Database เรียบร้อยแล้ว', 'success');
+    } catch (e: any) {
+      Swal.fire('ล้มเหลว', e.message, 'error');
+    } finally {
+      setSyncing(false);
+    }
   };
 
   // --- RESEARCH DATA LOGIC ---
@@ -122,11 +275,6 @@ const AdminDashboard: React.FC = () => {
       if (moodCounts[log.mood] !== undefined) moodCounts[log.mood]++;
     });
 
-    const stepTrends = allLogs.slice(-30).map(l => ({
-      date: new Date(l.date).toLocaleDateString('th-TH', { day: '2-digit', month: 'short' }),
-      steps: Number(l.steps)
-    }));
-
     return { 
       bmi: Object.entries(bmiBins).map(([name, value]) => ({ name, value })),
       mood: [
@@ -134,115 +282,135 @@ const AdminDashboard: React.FC = () => {
         { name: 'ปกติ', value: moodCounts.normal, color: '#60a5fa' },
         { name: 'เศร้า', value: moodCounts.sad, color: '#818cf8' },
         { name: 'หงุดหงิด', value: moodCounts.angry, color: '#f87171' }
-      ],
-      steps: stepTrends
+      ]
     };
   }, [allLogs]);
 
-  const filteredQuiz = useMemo(() => {
-    if (!searchQuiz) return quizPool;
-    const lowerSearch = searchQuiz.toLowerCase();
-    return quizPool.filter(q => 
-      q.question?.toLowerCase().includes(lowerSearch) ||
-      q.option1?.toLowerCase().includes(lowerSearch) ||
-      q.option2?.toLowerCase().includes(lowerSearch) ||
-      q.option3?.toLowerCase().includes(lowerSearch) ||
-      q.option4?.toLowerCase().includes(lowerSearch)
-    );
-  }, [quizPool, searchQuiz]);
+  const renderIndividualReport = () => (
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-6 duration-500">
+       <section className="bg-white p-8 rounded-[3rem] shadow-xl border-4 border-slate-50">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6 mb-8">
+             <div>
+                <h3 className="text-2xl font-black text-slate-800 flex items-center gap-2"><UserIcon className="text-blue-500" /> รายงานรายบุคคล</h3>
+                <p className="text-sm font-bold text-slate-400">เลือกนักเรียนเพื่อดูประวัติสุขภาพเชิงลึก</p>
+             </div>
+             <div className="relative w-full md:w-80">
+                <select 
+                  className="w-full pl-6 pr-10 py-4 bg-slate-50 rounded-2xl outline-none font-black text-slate-700 border-2 border-transparent focus:border-blue-400 transition-all appearance-none"
+                  value={selectedStudentId}
+                  onChange={(e) => setSelectedStudentId(e.target.value)}
+                >
+                  <option value="">เลือกนักเรียน...</option>
+                  {leaderboard.map(u => (
+                    <option key={u.user_id} value={u.user_id}>{u.fullname} ({u.class})</option>
+                  ))}
+                </select>
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400"><LayoutGrid size={20} /></div>
+             </div>
+          </div>
 
-  // --- SHOP MANAGEMENT FUNCTIONS ---
-  const handleSaveReward = async () => {
-    if (!rewardForm.title || !rewardForm.cost) {
-      Swal.fire('ข้อมูลไม่ครบ', 'กรุณาระบุชื่อและราคาของรางวัล', 'warning');
-      return;
-    }
-    setSyncing(true);
-    try {
-      const res = await dbService.saveShopReward(rewardForm);
-      if (res.success) {
-        Swal.fire('สำเร็จ', res.message, 'success');
-        setRewardForm({ title: '', cost: 50, stock: 10, icon: '🎁', description: '' });
-        setIsEditingReward(false);
-        fetchData();
-      }
-    } catch (e: any) {
-      Swal.fire('ผิดพลาด', e.message, 'error');
-    } finally { setSyncing(false); }
-  };
+          {!selectedStudentId ? (
+            <div className="py-20 text-center flex flex-col items-center gap-4 opacity-30">
+               <div className="text-8xl">🔍</div>
+               <p className="font-black italic">กรุณาเลือกรายชื่อนักเรียนจากด้านบน</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+               <div className="space-y-6">
+                  <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-8 rounded-[2.5rem] border-2 border-blue-100 flex flex-col items-center">
+                     <div className="w-24 h-24 bg-white rounded-[2rem] flex items-center justify-center text-5xl shadow-lg border-4 border-white mb-4">
+                        {studentAvatar?.base_emoji || '🧑‍🚀'}
+                     </div>
+                     <h4 className="text-xl font-black text-slate-800">{leaderboard.find(u => u.user_id === selectedStudentId)?.fullname}</h4>
+                     <p className="text-xs font-black text-blue-500 uppercase tracking-widest mt-1">Level {studentAvatar?.level}</p>
+                     
+                     <div className="grid grid-cols-2 gap-4 w-full mt-6">
+                        <div className="bg-white p-4 rounded-2xl text-center shadow-sm">
+                           <p className="text-[10px] font-black text-slate-400 uppercase">เหรียญ</p>
+                           <p className="text-lg font-black text-amber-500">{studentAvatar?.coin}</p>
+                        </div>
+                        <div className="bg-white p-4 rounded-2xl text-center shadow-sm">
+                           <p className="text-[10px] font-black text-slate-400 uppercase">Streak</p>
+                           <p className="text-lg font-black text-orange-500">{studentAvatar?.streak_count} วัน</p>
+                        </div>
+                     </div>
+                  </div>
 
-  const handleEditReward = (reward: ShopReward) => {
-    setRewardForm(reward);
-    setIsEditingReward(true);
-    // Scroll to top or to the form section
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
+                  <div className="bg-white p-6 rounded-[2rem] border-2 border-slate-50 shadow-sm">
+                     <h5 className="font-black text-slate-800 mb-4 flex items-center gap-2"><Sparkles className="text-amber-500" size={18}/> AI Insight สำหรับครู</h5>
+                     <p className="text-xs font-medium text-slate-600 italic leading-relaxed">
+                        "{studentAiInsight || "กำลังวิเคราะห์ข้อมูล..."}"
+                     </p>
+                  </div>
+               </div>
 
-  const handleDeleteReward = async (id: string) => {
-    const confirm = await Swal.fire({
-      title: 'ลบของรางวัล?',
-      text: 'การกระทำนี้ไม่สามารถย้อนกลับได้',
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonColor: '#ef4444'
-    });
-    if (confirm.isConfirmed) {
-      setSyncing(true);
-      try {
-        await dbService.deleteShopReward(id);
-        Swal.fire('ลบแล้ว', 'ลบของรางวัลออกจากระบบเรียบร้อย', 'success');
-        fetchData();
-      } catch (e: any) { Swal.fire('ผิดพลาด', e.message, 'error'); }
-      finally { setSyncing(false); }
-    }
-  };
+               <div className="lg:col-span-2 space-y-6">
+                  <div className="bg-white p-8 rounded-[2.5rem] border-2 border-slate-50 shadow-sm">
+                     <h5 className="font-black text-slate-800 mb-6 flex items-center gap-2"><TrendingUp className="text-emerald-500" /> แนวโน้มจำนวนก้าว (7 วันล่าสุด)</h5>
+                     <div className="h-64">
+                        <ResponsiveContainer width="100%" height="100%">
+                           <AreaChart data={studentLogs.slice(-7).map(l => ({ date: new Date(l.date).toLocaleDateString('th-TH', {day:'2-digit', month:'short'}), steps: Number(l.steps) }))}>
+                              <defs>
+                                <linearGradient id="colorStepsInd" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.1}/>
+                                  <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                                </linearGradient>
+                              </defs>
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                              <XAxis dataKey="date" fontSize={10} />
+                              <YAxis fontSize={10} />
+                              <Tooltip />
+                              <Area type="monotone" dataKey="steps" stroke="#10b981" fillOpacity={1} fill="url(#colorStepsInd)" strokeWidth={3} />
+                           </AreaChart>
+                        </ResponsiveContainer>
+                     </div>
+                  </div>
 
-  const handleUpdateRedemptionStatus = async (id: string, status: 'completed' | 'pending') => {
-    try {
-      await dbService.updateRedemptionStatus(id, status);
-      Swal.fire({ title: 'อัปเดตสถานะแล้ว', icon: 'success', toast: true, position: 'top-end', timer: 2000, showConfirmButton: false });
-      fetchData();
-    } catch (e) { Swal.fire('ผิดพลาด', 'ไม่สามารถอัปเดตได้', 'error'); }
-  };
-
-  const handleDeleteQuiz = async (id: string) => {
-    const confirm = await Swal.fire({ title: 'ลบคำถาม?', text: 'ไม่สามารถกู้คืนได้', icon: 'warning', showCancelButton: true });
-    if (confirm.isConfirmed) {
-      await dbService.deleteQuizQuestion(id);
-      fetchData();
-    }
-  };
-
-  // --- SYSTEM FUNCTIONS ---
-  const handleSetupDatabase = async () => {
-    const confirm = await Swal.fire({
-      title: 'ตั้งค่าระบบใหม่?',
-      text: 'ระบบจะทำการสร้าง Sheet ที่จำเป็นหากยังไม่มี (ข้อมูลเก่าจะไม่หาย)',
-      icon: 'info',
-      showCancelButton: true
-    });
-    if (confirm.isConfirmed) {
-      setSyncing(true);
-      try {
-        await dbService.callJSONP('setupDatabase', {});
-        Swal.fire('สำเร็จ', 'ระบบฐานข้อมูลพร้อมใช้งาน!', 'success');
-      } catch (e: any) { Swal.fire('ผิดพลาด', e.message, 'error'); }
-      finally { setSyncing(false); }
-    }
-  };
+                  <div className="bg-white p-8 rounded-[2.5rem] border-2 border-slate-50 shadow-sm overflow-hidden">
+                     <h5 className="font-black text-slate-800 mb-6 flex items-center gap-2"><Calendar className="text-blue-500" /> ประวัติการบันทึก</h5>
+                     <div className="max-h-80 overflow-y-auto pr-2 custom-scrollbar">
+                        <table className="w-full text-left text-sm">
+                           <thead className="sticky top-0 bg-white border-b-2 border-slate-50 text-[10px] font-black text-slate-400 uppercase">
+                              <tr>
+                                 <th className="pb-3 px-2">วันที่</th>
+                                 <th className="pb-3 px-2">อารมณ์</th>
+                                 <th className="pb-3 px-2">ก้าว</th>
+                                 <th className="pb-3 px-2">นอน (ชม.)</th>
+                              </tr>
+                           </thead>
+                           <tbody className="divide-y divide-slate-50 font-bold text-slate-600">
+                              {studentLogs.slice().reverse().map(l => (
+                                 <tr key={l.id} className="hover:bg-slate-50 transition-colors">
+                                    <td className="py-3 px-2 whitespace-nowrap">{new Date(l.date).toLocaleDateString('th-TH')}</td>
+                                    <td className="py-3 px-2">{l.mood === 'happy' ? '😀' : l.mood === 'normal' ? '😐' : '😟'}</td>
+                                    <td className="py-3 px-2">{l.steps}</td>
+                                    <td className="py-3 px-2">{l.sleep_hours}</td>
+                                 </tr>
+                              ))}
+                           </tbody>
+                        </table>
+                        {studentLogs.length === 0 && <p className="text-center py-10 text-slate-300 italic">ยังไม่มีข้อมูลการบันทึก</p>}
+                     </div>
+                  </div>
+               </div>
+            </div>
+          )}
+       </section>
+    </div>
+  );
 
   const handleAIAnalysis = async () => {
     setAnalyzing(true);
     try {
       const report = await getClassReport(allLogs, leaderboard.length);
-      Swal.fire({ title: 'รายงาน AI', html: `<div class="text-left text-sm font-medium leading-relaxed">${report.replace(/\n/g, '<br/>')}</div>`, icon: 'info' });
+      Swal.fire({ title: 'รายงาน AI ภาพรวมชั้นเรียน', html: `<div class="text-left text-sm font-medium leading-relaxed">${report.replace(/\n/g, '<br/>')}</div>`, icon: 'info' });
     } catch (e) { Swal.fire('ล้มเหลว', 'AI ไม่ว่างในขณะนี้', 'error'); }
     finally { setAnalyzing(false); }
   };
 
   const handleBroadcast = async () => {
     const { value: v } = await Swal.fire({
-      title: 'แจกรางวัลทั้งห้อง 🎁',
+      title: 'แจกรางวัลทั้งชั้น 🎁',
       html: '<input id="exp" type="number" placeholder="EXP" class="swal2-input" value="100"><input id="coin" type="number" placeholder="เหรียญ" class="swal2-input" value="20">',
       preConfirm: () => ({ exp: (document.getElementById('exp') as HTMLInputElement).value, coin: (document.getElementById('coin') as HTMLInputElement).value })
     });
@@ -264,12 +432,11 @@ const AdminDashboard: React.FC = () => {
 
   return (
     <div className="space-y-8 pb-10 max-w-7xl mx-auto">
-      {/* Header Bento */}
       <header className="bg-white rounded-[3.5rem] p-10 shadow-xl border-8 border-slate-50 flex flex-col md:flex-row justify-between items-center gap-8 relative overflow-hidden group">
         <div className="absolute top-0 right-0 w-64 h-64 bg-blue-50 rounded-full opacity-20 -mr-20 -mt-20 group-hover:scale-110 transition-transform"></div>
         <div className="relative z-10 text-center md:text-left">
           <div className="flex items-center gap-3 mb-3 justify-center md:justify-start">
-             <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-lg"><Shield size={24} /></div>
+             <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-lg"><UserIcon size={24} /></div>
              <span className="bg-blue-50 text-blue-600 px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">Administrator</span>
           </div>
           <h1 className="text-4xl font-black text-slate-800 tracking-tight">KidsHealthyMe Command</h1>
@@ -281,20 +448,23 @@ const AdminDashboard: React.FC = () => {
              <Gift size={20} /> แจกรางวัลทั้งชั้น
            </button>
            <button onClick={handleAIAnalysis} disabled={analyzing} className="bg-blue-600 text-white font-black px-8 py-4 rounded-[2rem] flex items-center gap-2 shadow-lg hover:translate-y-[-2px] transition-all active:scale-95 disabled:opacity-50">
-             {analyzing ? <RefreshCw className="animate-spin" size={20} /> : <Brain size={20} />} AI วิเคราะห์ชั้นเรียน
+             {analyzing ? <RefreshCw className="animate-spin" size={20} /> : <Brain size={20} />} AI วิเคราะห์ภาพรวม
            </button>
         </div>
       </header>
 
-      {/* Modern Tabs */}
       <div className="flex flex-wrap gap-2 bg-white/60 backdrop-blur-md p-2 rounded-[2.5rem] w-fit mx-auto shadow-sm border border-white">
-        {(['overview', 'research', 'shop', 'quiz', 'system'] as const).map(tab => (
+        {(['overview', 'research', 'individual', 'shop', 'quiz', 'system'] as const).map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`px-10 py-3.5 rounded-[1.8rem] text-sm font-black transition-all ${activeTab === tab ? 'bg-blue-600 text-white shadow-lg scale-105' : 'text-slate-400 hover:text-slate-600 hover:bg-white'}`}
+            className={`px-8 py-3.5 rounded-[1.8rem] text-sm font-black transition-all ${activeTab === tab ? 'bg-blue-600 text-white shadow-lg scale-105' : 'text-slate-400 hover:text-slate-600 hover:bg-white'}`}
           >
-            {tab.toUpperCase()}
+            {tab === 'overview' ? 'ภาพรวม' : 
+             tab === 'research' ? 'วิจัย (Big Data)' : 
+             tab === 'individual' ? 'รายงานรายบุคคล' :
+             tab === 'shop' ? 'จัดการร้านค้า' :
+             tab === 'quiz' ? 'คลังควิซ' : 'ตั้งค่า'}
           </button>
         ))}
       </div>
@@ -337,7 +507,7 @@ const AdminDashboard: React.FC = () => {
         <div className="space-y-8 animate-in fade-in duration-500">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
              <section className="bg-white p-10 rounded-[3.5rem] shadow-xl border border-slate-50">
-                <h3 className="text-2xl font-black mb-8 text-slate-800 flex items-center gap-2"><BarChart3 className="text-blue-500" /> BMI Distribution</h3>
+                <h3 className="text-2xl font-black mb-8 text-slate-800 flex items-center gap-2"><BarChart3 className="text-blue-500" /> BMI Distribution (ห้องเรียน)</h3>
                 <div className="h-80">
                    <ResponsiveContainer width="100%" height="100%">
                      <BarChart data={researchStats.bmi}>
@@ -354,7 +524,7 @@ const AdminDashboard: React.FC = () => {
              </section>
 
              <section className="bg-white p-10 rounded-[3.5rem] shadow-xl border border-slate-50">
-                <h3 className="text-2xl font-black mb-8 text-slate-800 flex items-center gap-2"><MessageSquare className="text-amber-500" /> Mood Overview</h3>
+                <h3 className="text-2xl font-black mb-8 text-slate-800 flex items-center gap-2"><MessageSquare className="text-amber-500" /> อารมณ์นักเรียน (Big Data)</h3>
                 <div className="h-80">
                    <ResponsiveContainer width="100%" height="100%">
                      <PieChart>
@@ -367,34 +537,14 @@ const AdminDashboard: React.FC = () => {
                 </div>
              </section>
           </div>
-
-          <section className="bg-white p-10 rounded-[3.5rem] shadow-xl border border-slate-50">
-            <h3 className="text-2xl font-black mb-8 text-slate-800 flex items-center gap-2"><Activity className="text-emerald-500" /> Activity Trend (Recent Logs)</h3>
-            <div className="h-80">
-               <ResponsiveContainer width="100%" height="100%">
-                 <AreaChart data={researchStats.steps}>
-                    <defs>
-                      <linearGradient id="colorSteps" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.1}/>
-                        <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="date" />
-                    <YAxis />
-                    <Tooltip />
-                    <Area type="monotone" dataKey="steps" stroke="#10b981" fillOpacity={1} fill="url(#colorSteps)" strokeWidth={4} />
-                 </AreaChart>
-               </ResponsiveContainer>
-            </div>
-          </section>
         </div>
       )}
+
+      {activeTab === 'individual' && renderIndividualReport()}
 
       {activeTab === 'shop' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in slide-in-from-bottom-6 duration-500">
            <div className="lg:col-span-2 space-y-8">
-              {/* List of Pending Redemptions */}
               <section className="bg-white p-10 rounded-[3.5rem] shadow-xl border border-slate-50">
                  <h3 className="text-2xl font-black mb-8 flex items-center gap-3"><Clock className="text-amber-500" /> คำขอแลกของรางวัลล่าสุด</h3>
                  <div className="space-y-4">
@@ -420,11 +570,9 @@ const AdminDashboard: React.FC = () => {
                           </div>
                        </div>
                     ))}
-                    {redemptions.length === 0 && <p className="text-center py-10 italic text-slate-300 font-bold">ยังไม่มีรายการแลกของ</p>}
                  </div>
               </section>
 
-              {/* List of Existing Rewards */}
               <section className="bg-white p-10 rounded-[3.5rem] shadow-xl border border-slate-50">
                 <h3 className="text-2xl font-black mb-8 flex items-center gap-3"><Package className="text-blue-500" /> รายการของรางวัลในคลัง</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -436,7 +584,6 @@ const AdminDashboard: React.FC = () => {
                           <p className="font-black text-slate-700">{reward.title}</p>
                           <div className="flex gap-3 mt-1">
                             <span className="text-[10px] font-black text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full uppercase">{reward.cost} Coins</span>
-                            <span className="text-[10px] font-black text-slate-400 bg-white px-2 py-0.5 rounded-full uppercase">Stock: {reward.stock}</span>
                           </div>
                         </div>
                       </div>
@@ -451,81 +598,32 @@ const AdminDashboard: React.FC = () => {
            </div>
            
            <div className="space-y-8">
-              {/* Add/Edit Reward Form */}
               <section className="bg-white p-8 rounded-[3.5rem] shadow-xl border-4 border-amber-50 sticky top-24">
                  <h3 className="text-xl font-black mb-6 flex items-center gap-3 text-amber-600">
                    {isEditingReward ? <Edit2 size={20} /> : <Plus size={20} />} 
                    {isEditingReward ? 'แก้ไขของรางวัล' : 'เพิ่มของรางวัลใหม่'}
                  </h3>
                  <div className="space-y-5">
-                    <div>
-                      <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">ชื่อของรางวัล</label>
-                      <input 
-                        type="text" 
-                        placeholder="เช่น ตุ๊กตาหมี, สติ๊กเกอร์..." 
-                        className="w-full px-5 py-4 bg-slate-50 rounded-2xl border-none outline-none font-bold text-sm"
-                        value={rewardForm.title}
-                        onChange={(e) => setRewardForm({...rewardForm, title: e.target.value})}
-                      />
-                    </div>
+                    <input 
+                      type="text" placeholder="ชื่อของรางวัล..." 
+                      className="w-full px-5 py-4 bg-slate-50 rounded-2xl outline-none font-bold text-sm"
+                      value={rewardForm.title} onChange={(e) => setRewardForm({...rewardForm, title: e.target.value})}
+                    />
                     <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">ราคา (เหรียญ)</label>
-                        <input 
-                          type="number" 
-                          className="w-full px-5 py-4 bg-slate-50 rounded-2xl border-none outline-none font-bold text-sm"
-                          value={rewardForm.cost}
-                          onChange={(e) => setRewardForm({...rewardForm, cost: Number(e.target.value)})}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">จำนวนสต็อก</label>
-                        <input 
-                          type="number" 
-                          className="w-full px-5 py-4 bg-slate-50 rounded-2xl border-none outline-none font-bold text-sm"
-                          value={rewardForm.stock}
-                          onChange={(e) => setRewardForm({...rewardForm, stock: Number(e.target.value)})}
-                        />
-                      </div>
+                       <input 
+                         type="number" placeholder="ราคา"
+                         className="w-full px-5 py-4 bg-slate-50 rounded-2xl outline-none font-bold text-sm"
+                         value={rewardForm.cost} onChange={(e) => setRewardForm({...rewardForm, cost: Number(e.target.value)})}
+                       />
+                       <input 
+                         type="number" placeholder="สต็อก"
+                         className="w-full px-5 py-4 bg-slate-50 rounded-2xl outline-none font-bold text-sm"
+                         value={rewardForm.stock} onChange={(e) => setRewardForm({...rewardForm, stock: Number(e.target.value)})}
+                       />
                     </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <div className="col-span-1">
-                        <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">ไอคอน</label>
-                        <input 
-                          type="text" 
-                          className="w-full px-2 py-4 bg-slate-50 rounded-2xl border-none text-center outline-none font-bold text-lg"
-                          value={rewardForm.icon}
-                          onChange={(e) => setRewardForm({...rewardForm, icon: e.target.value})}
-                        />
-                      </div>
-                      <div className="col-span-3">
-                        <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">คำอธิบาย</label>
-                        <input 
-                          type="text" 
-                          placeholder="รายละเอียดของรางวัล..."
-                          className="w-full px-5 py-4 bg-slate-50 rounded-2xl border-none outline-none font-bold text-sm"
-                          value={rewardForm.description}
-                          onChange={(e) => setRewardForm({...rewardForm, description: e.target.value})}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex gap-3 mt-4">
-                      {isEditingReward && (
-                        <button 
-                          onClick={() => { setRewardForm({title: '', cost: 50, stock: 10, icon: '🎁', description: ''}); setIsEditingReward(false); }}
-                          className="flex-1 py-4 bg-slate-100 text-slate-500 rounded-2xl font-black text-sm"
-                        >ยกเลิก</button>
-                      )}
-                      <button 
-                        onClick={handleSaveReward} 
-                        disabled={syncing}
-                        className={`flex-[2] py-4 bg-amber-500 text-white rounded-2xl font-black shadow-lg shadow-amber-100 flex items-center justify-center gap-2 ${syncing ? 'opacity-50' : 'hover:brightness-110'}`}
-                      >
-                        {syncing ? <RefreshCw className="animate-spin" /> : (isEditingReward ? <Check /> : <SaveIcon />)}
-                        {isEditingReward ? 'บันทึกการแก้ไข' : 'เพิ่มลงคลัง'}
-                      </button>
-                    </div>
+                    <button onClick={handleSaveReward} className="w-full py-4 bg-amber-500 text-white rounded-2xl font-black flex items-center justify-center gap-2">
+                       <SaveIcon size={20}/> บันทึก
+                    </button>
                  </div>
               </section>
            </div>
@@ -533,108 +631,129 @@ const AdminDashboard: React.FC = () => {
       )}
 
       {activeTab === 'quiz' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in slide-in-from-bottom-6 duration-500">
-           <div className="lg:col-span-2 space-y-6">
-              <div className="bg-gradient-to-br from-indigo-700 to-blue-800 p-10 rounded-[3.5rem] shadow-xl text-white relative overflow-hidden">
-                 <div className="absolute top-0 right-0 p-10 opacity-10"><Wand2 size={120} /></div>
-                 <div className="relative z-10">
-                    <h3 className="text-2xl font-black mb-4 flex items-center gap-3"><Brain /> AI Quiz Architect</h3>
-                    <div className="flex gap-3">
+         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in duration-500">
+            <div className="lg:col-span-2 space-y-6">
+               <section className="bg-white p-10 rounded-[3.5rem] shadow-xl border-t-8 border-indigo-500 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-8 opacity-5"><Brain size={120} /></div>
+                  <h3 className="text-2xl font-black mb-6 flex items-center gap-3 relative z-10"><Brain className="text-indigo-500" /> AI Quiz Architect</h3>
+                  <p className="text-xs font-bold text-slate-400 mb-4 relative z-10">ป้อนหัวข้อที่คุณครูต้องการ แล้วให้ AI ช่วยร่างคำถาม 5 ข้อพร้อมตัวเลือกและเฉลย</p>
+                  <div className="flex gap-4 relative z-10">
+                     <input 
+                       type="text" placeholder="หัวข้อ (เช่น การล้างมือ, วิตามิน, การนอนหลับ)..." 
+                       className="flex-grow px-6 py-4 bg-slate-50 rounded-2xl outline-none font-bold text-slate-700 border-2 border-transparent focus:border-indigo-400 transition-all shadow-inner"
+                       value={aiTopic} onChange={(e) => setAiTopic(e.target.value)}
+                       disabled={generatingAI}
+                     />
+                     <button 
+                        onClick={handleAIQuestionGenerate} 
+                        disabled={generatingAI || !aiTopic}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-4 rounded-2xl font-black shadow-lg shadow-indigo-100 flex items-center gap-2 transition-all active:scale-95 disabled:opacity-50"
+                     >
+                        {generatingAI ? <RefreshCw className="animate-spin" size={20} /> : <Wand2 size={20} />}
+                        {generatingAI ? 'กำลังร่าง...' : 'ร่างควิซ'}
+                     </button>
+                  </div>
+               </section>
+
+               <section className="bg-white p-10 rounded-[3.5rem] shadow-xl max-h-[600px] flex flex-col">
+                  <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-2xl font-black flex items-center gap-3"><BookOpen className="text-blue-500" /> คลังคำถาม ({quizPool.length})</h3>
+                    <div className="relative">
+                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={16} />
                        <input 
-                          type="text" placeholder="หัวข้อที่คุณครูต้องการ..."
-                          className="flex-grow bg-white/10 border border-white/20 rounded-2xl px-6 py-4 outline-none font-bold text-white shadow-inner"
-                          value={aiTopic} onChange={(e) => setAiTopic(e.target.value)}
+                         type="text" 
+                         placeholder="ค้นหาคำถาม..." 
+                         className="pl-10 pr-4 py-2 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold outline-none focus:border-blue-300"
+                         value={searchQuiz}
+                         onChange={(e) => setSearchQuiz(e.target.value)}
                        />
-                       <button onClick={handleAIQuestionGenerate} disabled={generatingAI} className="bg-white text-indigo-700 font-black px-8 py-4 rounded-2xl shadow-lg hover:bg-indigo-50 disabled:opacity-50 flex items-center gap-2">
-                          {generatingAI ? <RefreshCw className="animate-spin" size={20} /> : <Sparkles size={20} />} ร่างข้อสอบ
-                       </button>
                     </div>
-                 </div>
-              </div>
-
-              <div className="bg-white p-10 rounded-[3.5rem] shadow-xl border border-slate-50">
-                 <div className="flex justify-between items-center mb-8">
-                    <h3 className="text-2xl font-black text-slate-800 flex items-center gap-3"><BookOpen className="text-blue-500" /> คลังคำถาม ({quizPool.length})</h3>
-                    <div className="relative"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={16} /><input type="text" placeholder="ค้นหา..." className="pl-12 pr-4 py-2 bg-slate-50 rounded-xl outline-none font-bold text-sm" value={searchQuiz} onChange={(e) => setSearchQuiz(e.target.value)}/></div>
-                 </div>
-                 <div className="space-y-4 max-h-[500px] overflow-y-auto pr-4 custom-scrollbar">
-                    {filteredQuiz.map((q, idx) => (
-                       <div key={idx} className="bg-slate-50 p-6 rounded-[2rem] flex justify-between items-center group hover:bg-white hover:shadow-md transition-all">
-                          <div className="flex items-center gap-4">
-                             <div className="text-3xl bg-white w-12 h-12 rounded-xl flex items-center justify-center shadow-sm">{q.icon}</div>
-                             <div><p className="font-bold text-slate-700">{q.question}</p><p className="text-[10px] font-black text-emerald-500 uppercase">Ans: {q['option' + (parseInt(q.answer) + 1)]}</p></div>
+                  </div>
+                  <div className="flex-grow overflow-y-auto pr-2 custom-scrollbar space-y-3">
+                     {quizPool.filter(q => q.question.toLowerCase().includes(searchQuiz.toLowerCase())).length > 0 ? (
+                       quizPool.filter(q => q.question.toLowerCase().includes(searchQuiz.toLowerCase())).map(q => (
+                          <div key={q.id} className="p-4 bg-slate-50 rounded-2xl flex justify-between items-center group hover:bg-blue-50 transition-all border border-transparent hover:border-blue-100 shadow-sm">
+                             <div className="flex items-center gap-4">
+                                <div className="text-3xl bg-white p-2 rounded-xl shadow-sm">{q.icon || '❓'}</div>
+                                <div>
+                                   <p className="font-black text-slate-700">{q.question}</p>
+                                   <div className="flex gap-2 mt-1">
+                                      <span className="text-[9px] bg-emerald-100 text-emerald-600 px-2 py-0.5 rounded-full font-black uppercase tracking-widest">เฉลย: ข้อ {parseInt(q.answer) + 1}</span>
+                                      <span className="text-[9px] bg-slate-200 text-slate-500 px-2 py-0.5 rounded-full font-black uppercase tracking-widest">ID: {q.id}</span>
+                                   </div>
+                                </div>
+                             </div>
+                             <button onClick={() => handleDeleteQuiz(q.id)} className="p-2 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"><Trash2 size={20}/></button>
                           </div>
-                          <button onClick={() => handleDeleteQuiz(q.id)} className="p-2 text-slate-200 hover:text-red-500"><Trash2 size={20}/></button>
+                       ))
+                     ) : (
+                       <div className="py-20 text-center text-slate-300 italic flex flex-col items-center">
+                          <Search size={48} className="mb-4 opacity-20" />
+                          ไม่พบข้อมูลคำถาม
                        </div>
-                    ))}
-                 </div>
-              </div>
-           </div>
+                     )}
+                  </div>
+               </section>
+            </div>
 
-           <div className="bg-white p-8 rounded-[3.5rem] shadow-xl border-4 border-blue-50 flex flex-col h-fit">
-              <h3 className="text-xl font-black text-slate-800 flex items-center gap-3 mb-6"><UploadCloud className="text-blue-500" /> Bulk Add (Chunking)</h3>
-              <textarea 
-                 className="w-full h-80 p-6 bg-slate-50 rounded-[2rem] border-2 border-transparent focus:border-blue-300 outline-none font-bold text-sm resize-none shadow-inner"
-                 placeholder="คำถาม | ต1 | ต2 | ต3 | ต4 | คำตอบ(0-3) | ไอคอน"
-                 value={bulkInput} onChange={(e) => setBulkInput(e.target.value)}
-              />
-              <button onClick={handleBulkAddQuiz} disabled={syncing || !bulkInput.trim()} className="w-full mt-6 py-5 bg-blue-600 text-white rounded-[2.5rem] font-black text-sm shadow-xl hover:bg-blue-700 transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2">
-                 {syncing ? <RefreshCw className="animate-spin" size={20} /> : <Check size={20} />} บันทึกลง Sheet
-              </button>
-           </div>
-        </div>
+            <section className="bg-white p-8 rounded-[3.5rem] shadow-xl border-4 border-blue-50 h-fit sticky top-24 flex flex-col">
+               <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-xl font-black flex items-center gap-2"><UploadCloud className="text-blue-500" /> Bulk Add / Edit</h3>
+                  <button onClick={() => setBulkInput('')} className="p-2 text-slate-300 hover:text-red-400" title="ล้างข้อมูล"><Eraser size={18}/></button>
+               </div>
+               <p className="text-[10px] font-bold text-slate-400 mb-4 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-100">
+                  รูปแบบ: <br/>
+                  <code className="text-blue-600">คำถาม | ต1 | ต2 | ต3 | ต4 | เฉลย(0-3) | ไอคอน</code>
+               </p>
+               <textarea 
+                  className="w-full h-80 p-5 bg-slate-50 rounded-[2rem] outline-none font-bold text-xs text-slate-600 border-2 border-transparent focus:border-blue-300 transition-all shadow-inner resize-none"
+                  placeholder="ตัวอย่าง: แปรงฟันวันละกี่ครั้ง? | 1 | 2 | 3 | 0 | 1 | 🪥"
+                  value={bulkInput} onChange={(e) => setBulkInput(e.target.value)}
+                  disabled={syncing}
+               />
+               
+               <div className="mt-6 space-y-3">
+                  <div className="flex justify-between px-2">
+                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">พร้อมบันทึก</span>
+                     <span className="text-[10px] font-black text-blue-500 uppercase tracking-widest">{bulkInput.trim().split('\n').filter(l => l.trim()).length} รายการ</span>
+                  </div>
+                  <button 
+                    onClick={handleBulkAddQuiz} 
+                    disabled={syncing || !bulkInput.trim()}
+                    className="w-full py-5 bg-blue-600 hover:bg-blue-700 text-white rounded-[2rem] font-black shadow-xl shadow-blue-100 transition-all active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50"
+                  >
+                    {syncing ? <RefreshCw className="animate-spin" /> : <SaveIcon />}
+                    บันทึกลงฐานข้อมูล
+                  </button>
+               </div>
+            </section>
+         </div>
       )}
 
       {activeTab === 'system' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-in fade-in duration-500">
-           <section className="bg-white p-10 rounded-[3.5rem] shadow-xl border border-slate-50">
-              <h3 className="text-2xl font-black mb-8 text-slate-800 flex items-center gap-2"><Database className="text-blue-500" /> Database Management</h3>
-              <div className="space-y-6">
-                 <div className="p-6 bg-blue-50 rounded-[2rem] border-2 border-blue-100">
-                    <p className="text-xs font-black text-blue-400 uppercase tracking-widest mb-2">Spreadsheet ID</p>
-                    <code className="text-[11px] font-mono font-black text-blue-700 block break-all bg-white p-4 rounded-xl shadow-inner border border-blue-100">{dbService.getSpreadsheetId()}</code>
-                 </div>
-                 <div className="flex flex-col gap-4">
-                    <button onClick={handleSetupDatabase} className="w-full py-5 bg-blue-600 text-white rounded-[2rem] font-black shadow-lg flex items-center justify-center gap-3 hover:bg-blue-700 transition-all">
-                       <ShieldCheck size={24} /> Initialize / Fix Database
-                    </button>
-                    <button onClick={() => window.open(dbService.getWebAppUrl(), '_blank')} className="w-full py-5 bg-white border-4 border-slate-100 text-slate-400 rounded-[2rem] font-black shadow-sm flex items-center justify-center gap-3 hover:bg-slate-50 transition-all">
-                       <Eye size={24} /> Open GAS Console
-                    </button>
-                 </div>
-              </div>
-           </section>
-
-           <section className="bg-white p-10 rounded-[3.5rem] shadow-xl border border-slate-50">
-              <h3 className="text-2xl font-black mb-8 text-slate-800 flex items-center gap-2"><Server className="text-emerald-500" /> Server Health</h3>
-              <div className="space-y-4">
-                 <div className="flex justify-between items-center p-6 bg-slate-50 rounded-3xl">
-                    <span className="font-bold text-slate-600">Connection Status</span>
-                    <span className="bg-emerald-100 text-emerald-600 px-4 py-1 rounded-full text-xs font-black uppercase">Online</span>
-                 </div>
-                 <div className="flex justify-between items-center p-6 bg-slate-50 rounded-3xl">
-                    <span className="font-bold text-slate-600">API Key Configured</span>
-                    <span className="bg-emerald-100 text-emerald-600 px-4 py-1 rounded-full text-xs font-black uppercase">True</span>
-                 </div>
-                 <div className="flex justify-between items-center p-6 bg-slate-50 rounded-3xl">
-                    <span className="font-bold text-slate-600">Total Records</span>
-                    <span className="font-black text-slate-800 text-xl">{allLogs.length}</span>
-                 </div>
-                 <div className="p-8 mt-4 bg-amber-50 rounded-[2.5rem] border-2 border-dashed border-amber-200">
-                    <div className="flex items-center gap-3 text-amber-700 font-black mb-2"><Info size={20} /> ระบบจัดการนักวิจัย</div>
-                    <p className="text-xs text-amber-600 leading-relaxed font-medium">คุณครูสามารถส่งลิงก์หน้า Admin นี้ให้กับนักวิจัยภายนอกเพื่อตรวจสอบพฤติกรรมสุขภาพของนักเรียนได้ โดยสิทธิ์การจัดการ (ลบ/แก้ไข) จะจำกัดเฉพาะแอดมินเท่านั้น</p>
-                 </div>
-              </div>
-           </section>
-        </div>
+         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-in fade-in duration-500">
+            <section className="bg-white p-10 rounded-[3.5rem] shadow-xl">
+               <h3 className="text-2xl font-black mb-6 flex items-center gap-2"><Database className="text-blue-500" /> Database Management</h3>
+               <button onClick={handleSetupDatabase} className="w-full py-5 bg-blue-600 text-white rounded-[2rem] font-black shadow-lg flex items-center justify-center gap-3">
+                  <ShieldCheck size={24} /> Initialize / Fix Database
+               </button>
+            </section>
+            <section className="bg-white p-10 rounded-[3.5rem] shadow-xl">
+               <h3 className="text-2xl font-black mb-6 flex items-center gap-2"><Server className="text-emerald-500" /> Server Status</h3>
+               <div className="space-y-4">
+                  <div className="flex justify-between p-4 bg-emerald-50 rounded-2xl font-black text-emerald-600">
+                     <span>Connection</span>
+                     <span>Online</span>
+                  </div>
+                  <div className="p-4 bg-slate-50 rounded-2xl text-xs font-medium text-slate-400">
+                     Spreadsheet ID: {dbService.getSpreadsheetId()}
+                  </div>
+               </div>
+            </section>
+         </div>
       )}
     </div>
   );
 };
-
-// Helper Icon components
-const SaveIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
-);
 
 export default AdminDashboard;

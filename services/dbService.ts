@@ -1,5 +1,5 @@
 
-import { User, HealthLog, AvatarData, UserRole, Item, UserItem, ShopReward, RedemptionRecord } from '../types';
+import { User, HealthLog, AvatarData, UserRole, Item, UserItem, ShopReward, RedemptionRecord, SocialAction } from '../types';
 import { INITIAL_AVATAR, ITEMS_SHOP } from '../constants';
 
 const SPREADSHEET_ID = '1Y_qsmBerbRpPQdIo5ct0xni0VLoIQJ-C-r9FfRNM7Q8';
@@ -206,5 +206,40 @@ export const dbService = {
     } catch (e) {
       return [];
     }
+  },
+
+  // --- SOCIAL SYSTEM API ---
+  getFriends: async (userId: string): Promise<any[]> => {
+    try {
+      const res = await dbService.callJSONP('getFriends', { userId });
+      return res.friends || [];
+    } catch (e) {
+      return [];
+    }
+  },
+
+  addFriend: async (userId: string, friendId: string) => {
+    return await dbService.callJSONP('addFriend', { userId, friendId });
+  },
+
+  removeFriend: async (userId: string, friendId: string) => {
+    return await dbService.callJSONP('removeFriend', { userId, friendId });
+  },
+
+  sendSocialAction: async (action: Omit<SocialAction, 'id' | 'is_read' | 'created_at'>) => {
+    return await dbService.callJSONP('sendSocialAction', action);
+  },
+
+  getSocialActions: async (userId: string): Promise<SocialAction[]> => {
+    try {
+      const res = await dbService.callJSONP('getSocialActions', { userId });
+      return res.actions || [];
+    } catch (e) {
+      return [];
+    }
+  },
+
+  markActionsAsRead: async (userId: string) => {
+    return await dbService.callJSONP('markActionsAsRead', { userId });
   }
 };
