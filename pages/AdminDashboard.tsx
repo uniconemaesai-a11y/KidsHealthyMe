@@ -2,18 +2,19 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { dbService } from '../services/dbService';
 import { getClassReport, generateQuizQuestions, getAICoachFeedback } from '../geminiService';
-import { ShopReward, RedemptionRecord, HealthLog, AvatarData } from '../types';
+import { ShopReward, RedemptionRecord, HealthLog, AvatarData, Card } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, AreaChart, Area, Cell, PieChart, Pie } from 'recharts';
-import { Users, Activity, TrendingUp, RefreshCw, ShoppingBag, Plus, Trash2, Check, Clock, X, Brain, AlertCircle, Eye, Info, Sparkles, Gift, Save as SaveIcon, BookOpen, UploadCloud, Wand2, Search, BarChart3, ShieldCheck, Server, Edit2, Package, User as UserIcon, Calendar, Heart, MessageSquare, LayoutGrid, Database, Eraser } from 'lucide-react';
+import { Users, Activity, TrendingUp, RefreshCw, ShoppingBag, Plus, Trash2, Check, Clock, X, Brain, AlertCircle, Eye, Info, Sparkles, Gift, Save as SaveIcon, BookOpen, UploadCloud, Wand2, Search, BarChart3, ShieldCheck, Server, Edit2, Package, User as UserIcon, Calendar, Heart, MessageSquare, LayoutGrid, Database, Eraser, Layers } from 'lucide-react';
 import Swal from 'sweetalert2';
 
 const AdminDashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'research' | 'individual' | 'shop' | 'quiz' | 'system'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'research' | 'individual' | 'shop' | 'cards' | 'quiz' | 'system'>('overview');
   const [allLogs, setAllLogs] = useState<HealthLog[]>([]);
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
   const [rewards, setRewards] = useState<ShopReward[]>([]);
   const [redemptions, setRedemptions] = useState<RedemptionRecord[]>([]);
   const [quizPool, setQuizPool] = useState<any[]>([]);
+  const [cards, setCards] = useState<Card[]>([]);
   
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
@@ -36,21 +37,29 @@ const AdminDashboard: React.FC = () => {
   });
   const [isEditingReward, setIsEditingReward] = useState(false);
 
+  // Form State for Cards
+  const [cardForm, setCardForm] = useState<Partial<Card>>({
+    title: '', description: '', rarity: 'Common', image: '🥦', power_stats: { health: 5, brain: 5, energy: 5 }
+  });
+  const [isEditingCard, setIsEditingCard] = useState(false);
+
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [logs, users, shopItems, allRedemptions, questions] = await Promise.all([
+      const [logs, users, shopItems, allRedemptions, questions, allCards] = await Promise.all([
         dbService.getAllHealthLogs(),
         dbService.getLeaderboard(),
         dbService.getShopRewards(),
         dbService.getRedemptions(),
-        dbService.getQuizPool()
+        dbService.getQuizPool(),
+        dbService.getCards()
       ]);
       setAllLogs(logs);
       setLeaderboard(users);
       setRewards(shopItems);
       setRedemptions(allRedemptions);
       setQuizPool(questions);
+      setCards(allCards);
     } catch (e) {
       console.error("Fetch admin data error", e);
     } finally {
@@ -212,6 +221,54 @@ const AdminDashboard: React.FC = () => {
       Swal.fire('สำเร็จ!', 'บันทึกของรางวัลแล้ว', 'success');
       setRewardForm({ title: '', cost: 50, stock: 10, icon: '🎁', description: '' });
       setIsEditingReward(false);
+      fetchData();
+    } catch (e: any) {
+      Swal.fire('ล้มเหลว', e.message, 'error');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  // --- CARD FUNCTIONS ---
+  const handleEditCard = (card: Card) => {
+    setCardForm(card);
+    setIsEditingCard(true);
+  };
+
+  const handleDeleteCard = async (id: string) => {
+    const confirm = await Swal.fire({
+      title: 'ยืนยันการลบการ์ด?',
+      text: "คุณจะไม่สามารถกู้คืนการ์ดใบนี้ได้",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'ลบเลย',
+      cancelButtonText: 'ยกเลิก'
+    });
+    if (confirm.isConfirmed) {
+      setSyncing(true);
+      try {
+        await dbService.deleteCard(id);
+        Swal.fire('ลบแล้ว!', 'ลบการ์ดเรียบร้อย', 'success');
+        fetchData();
+      } catch (e: any) {
+        Swal.fire('ล้มเหลว', e.message, 'error');
+      } finally {
+        setSyncing(false);
+      }
+    }
+  };
+
+  const handleSaveCard = async () => {
+    if (!cardForm.title) {
+      Swal.fire('ข้อมูลไม่ครบ', 'กรุณาระบุชื่อการ์ด', 'warning');
+      return;
+    }
+    setSyncing(true);
+    try {
+      await dbService.saveCard(cardForm);
+      Swal.fire('สำเร็จ!', 'บันทึกการ์ดเรียบร้อยแล้ว', 'success');
+      setCardForm({ title: '', description: '', rarity: 'Common', image: '🥦', power_stats: { health: 5, brain: 5, energy: 5 } });
+      setIsEditingCard(false);
       fetchData();
     } catch (e: any) {
       Swal.fire('ล้มเหลว', e.message, 'error');
@@ -454,7 +511,7 @@ const AdminDashboard: React.FC = () => {
       </header>
 
       <div className="flex flex-wrap gap-2 bg-white/60 backdrop-blur-md p-2 rounded-[2.5rem] w-fit mx-auto shadow-sm border border-white">
-        {(['overview', 'research', 'individual', 'shop', 'quiz', 'system'] as const).map(tab => (
+        {(['overview', 'research', 'individual', 'shop', 'cards', 'quiz', 'system'] as const).map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -464,6 +521,7 @@ const AdminDashboard: React.FC = () => {
              tab === 'research' ? 'วิจัย (Big Data)' : 
              tab === 'individual' ? 'รายงานรายบุคคล' :
              tab === 'shop' ? 'จัดการร้านค้า' :
+             tab === 'cards' ? 'จัดการการ์ด' :
              tab === 'quiz' ? 'คลังควิซ' : 'ตั้งค่า'}
           </button>
         ))}
@@ -627,6 +685,108 @@ const AdminDashboard: React.FC = () => {
                  </div>
               </section>
            </div>
+        </div>
+      )}
+
+      {activeTab === 'cards' && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in slide-in-from-bottom-6 duration-500">
+          <div className="lg:col-span-2 space-y-8">
+            <section className="bg-white p-10 rounded-[3.5rem] shadow-xl border border-slate-50">
+              <h3 className="text-2xl font-black mb-8 flex items-center gap-3"><Layers className="text-indigo-500" /> คลังการ์ดฮีโร่ทั้งหมด</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {cards.map(card => (
+                  <div key={card.id} className="bg-slate-50 p-6 rounded-[2.5rem] border-2 border-transparent hover:border-indigo-100 transition-all flex flex-col group relative overflow-hidden">
+                    <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={() => handleEditCard(card)} className="p-2 bg-white text-indigo-500 rounded-xl shadow-sm hover:bg-indigo-50"><Edit2 size={14}/></button>
+                      <button onClick={() => handleDeleteCard(card.id)} className="p-2 bg-white text-red-500 rounded-xl shadow-sm hover:bg-red-50"><Trash2 size={14}/></button>
+                    </div>
+                    <div className="flex items-center gap-4 mb-4">
+                      <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-4xl shadow-sm ${card.rarity === 'Legendary' ? 'bg-amber-100' : card.rarity === 'Rare' ? 'bg-indigo-100' : 'bg-blue-100'}`}>
+                        {card.image.startsWith('http') ? <img src={card.image} className="w-full h-full object-cover rounded-2xl" /> : card.image}
+                      </div>
+                      <div>
+                        <p className="font-black text-slate-800">{card.title}</p>
+                        <span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest ${card.rarity === 'Legendary' ? 'bg-amber-500 text-white' : card.rarity === 'Rare' ? 'bg-indigo-500 text-white' : 'bg-blue-500 text-white'}`}>
+                          {card.rarity}
+                        </span>
+                      </div>
+                    </div>
+                    <p className="text-xs font-bold text-slate-400 mb-4 h-8 overflow-hidden line-clamp-2">{card.description}</p>
+                    <div className="grid grid-cols-3 gap-2">
+                       <div className="bg-white rounded-xl p-2 text-center border border-slate-100">
+                          <p className="text-[7px] font-black text-slate-400 uppercase">Health</p>
+                          <p className="text-xs font-black text-emerald-500">{card.power_stats.health}</p>
+                       </div>
+                       <div className="bg-white rounded-xl p-2 text-center border border-slate-100">
+                          <p className="text-[7px] font-black text-slate-400 uppercase">Brain</p>
+                          <p className="text-xs font-black text-blue-500">{card.power_stats.brain}</p>
+                       </div>
+                       <div className="bg-white rounded-xl p-2 text-center border border-slate-100">
+                          <p className="text-[7px] font-black text-slate-400 uppercase">Energy</p>
+                          <p className="text-xs font-black text-orange-500">{card.power_stats.energy}</p>
+                       </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </div>
+
+          <div className="space-y-8">
+            <section className="bg-white p-8 rounded-[3.5rem] shadow-xl border-4 border-indigo-50 sticky top-24">
+              <h3 className="text-xl font-black mb-6 flex items-center gap-3 text-indigo-600">
+                {isEditingCard ? <Edit2 size={20} /> : <Plus size={20} />} 
+                {isEditingCard ? 'แก้ไขการ์ด' : 'สร้างการ์ดใหม่'}
+              </h3>
+              <div className="space-y-5">
+                <input 
+                  type="text" placeholder="ชื่อฮีโร่บนการ์ด..." 
+                  className="w-full px-5 py-4 bg-slate-50 rounded-2xl outline-none font-bold text-sm"
+                  value={cardForm.title} onChange={(e) => setCardForm({...cardForm, title: e.target.value})}
+                />
+                <textarea 
+                  placeholder="คำอธิบายพลัง..." 
+                  className="w-full px-5 py-4 bg-slate-50 rounded-2xl outline-none font-bold text-sm h-24"
+                  value={cardForm.description} onChange={(e) => setCardForm({...cardForm, description: e.target.value})}
+                />
+                <div className="grid grid-cols-2 gap-4">
+                  <select 
+                    className="w-full px-5 py-4 bg-slate-50 rounded-2xl outline-none font-bold text-sm"
+                    value={cardForm.rarity} onChange={(e) => setCardForm({...cardForm, rarity: e.target.value as any})}
+                  >
+                    <option value="Common">Common</option>
+                    <option value="Rare">Rare</option>
+                    <option value="Legendary">Legendary</option>
+                  </select>
+                  <input 
+                    type="text" placeholder="Emoji หรือ Image URL" 
+                    className="w-full px-5 py-4 bg-slate-50 rounded-2xl outline-none font-bold text-sm"
+                    value={cardForm.image} onChange={(e) => setCardForm({...cardForm, image: e.target.value})}
+                  />
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                   <div>
+                      <label className="text-[9px] font-black text-slate-400 px-1 uppercase">HP</label>
+                      <input type="number" className="w-full px-3 py-2 bg-slate-50 rounded-xl font-bold" value={cardForm.power_stats?.health} onChange={(e) => setCardForm({...cardForm, power_stats: {...cardForm.power_stats!, health: Number(e.target.value)}})} />
+                   </div>
+                   <div>
+                      <label className="text-[9px] font-black text-slate-400 px-1 uppercase">INT</label>
+                      <input type="number" className="w-full px-3 py-2 bg-slate-50 rounded-xl font-bold" value={cardForm.power_stats?.brain} onChange={(e) => setCardForm({...cardForm, power_stats: {...cardForm.power_stats!, brain: Number(e.target.value)}})} />
+                   </div>
+                   <div>
+                      <label className="text-[9px] font-black text-slate-400 px-1 uppercase">ENG</label>
+                      <input type="number" className="w-full px-3 py-2 bg-slate-50 rounded-xl font-bold" value={cardForm.power_stats?.energy} onChange={(e) => setCardForm({...cardForm, power_stats: {...cardForm.power_stats!, energy: Number(e.target.value)}})} />
+                   </div>
+                </div>
+                <button onClick={handleSaveCard} className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black flex items-center justify-center gap-2">
+                   <SaveIcon size={20}/> บันทึกการ์ด
+                </button>
+                {isEditingCard && (
+                  <button onClick={() => { setIsEditingCard(false); setCardForm({ title: '', description: '', rarity: 'Common', image: '🥦', power_stats: { health: 5, brain: 5, energy: 5 } }); }} className="w-full py-2 text-slate-400 font-bold text-xs">ยกเลิกการแก้ไข</button>
+                )}
+              </div>
+            </section>
+          </div>
         </div>
       )}
 

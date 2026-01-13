@@ -1,5 +1,5 @@
 
-import { User, HealthLog, AvatarData, UserRole, Item, UserItem, ShopReward, RedemptionRecord, SocialAction } from '../types';
+import { User, HealthLog, AvatarData, UserRole, Item, UserItem, ShopReward, RedemptionRecord, SocialAction, Card, UserCard } from '../types';
 import { INITIAL_AVATAR, ITEMS_SHOP } from '../constants';
 
 const SPREADSHEET_ID = '1Y_qsmBerbRpPQdIo5ct0xni0VLoIQJ-C-r9FfRNM7Q8';
@@ -46,19 +46,12 @@ export const dbService = {
       try {
         const payload = encodeURIComponent(JSON.stringify(data || {}));
         const fullUrl = `${GAS_WEBAPP_URL}?action=${action}&callback=${callbackName}&payload=${payload}&v=${Date.now()}`;
-        
-        if (fullUrl.length > 8000) {
-          cleanup();
-          reject(new Error(`ข้อมูลยาวเกินไปสำหรับการส่งแบบปกติ`));
-          return;
-        }
-
         script.src = fullUrl;
         script.async = true;
         script.setAttribute('crossorigin', 'anonymous');
         script.onerror = () => {
           cleanup();
-          reject(new Error(`Network Error: เชื่อมต่อเซิร์ฟเวอร์ไม่ได้`));
+          reject(new Error(`Network Error: ไม่สามารถเชื่อมต่อกับ Action "${action}" ได้`));
         };
         document.head.appendChild(script);
       } catch (err: any) {
@@ -97,51 +90,41 @@ export const dbService = {
     return INITIAL_AVATAR(userId);
   },
 
-  getQuizPool: async (): Promise<any[]> => {
-    try {
-      const res = await dbService.callJSONP('getQuizPool', {});
-      return res.data || [];
-    } catch (e) {
-      return [];
-    }
+  getCards: async (): Promise<Card[]> => {
+    const res = await dbService.callJSONP('getCards', {});
+    return res.cards || [];
   },
 
-  saveBulkQuiz: async (questions: any[]) => {
-    return await dbService.callJSONP('saveBulkQuiz', { questions });
+  getUserCards: async (userId: string): Promise<UserCard[]> => {
+    const res = await dbService.callJSONP('getUserCards', { userId });
+    return res.userCards || [];
   },
 
-  deleteQuizQuestion: async (id: string) => {
-    return await dbService.callJSONP('deleteQuizQuestion', { id });
+  awardRandomCard: async (userId: string): Promise<{ success: boolean; card: Card }> => {
+    return await dbService.callJSONP('awardRandomCard', { userId });
   },
 
   saveHealthLog: async (log: Omit<HealthLog, 'id'>) => {
     return await dbService.callJSONP('saveHealthLog', log);
   },
 
-  getAllHealthLogs: async (): Promise<any[]> => {
-    try {
-      const res = await dbService.callJSONP('getAllHealthLogs', {});
-      return res.data || [];
-    } catch (e) {
-      return [];
-    }
+  getQuizPool: async (): Promise<any[]> => {
+    const res = await dbService.callJSONP('getQuizPool', {});
+    return res.data || [];
+  },
+
+  updateAvatarStats: async (userId: string, expGain: number) => {
+    return await dbService.callJSONP('updateAvatarStats', { userId, expGain });
+  },
+
+  getLeaderboard: async (className?: string): Promise<any[]> => {
+    const res = await dbService.callJSONP('getLeaderboardData', { className });
+    return res.data || [];
   },
 
   getShopRewards: async (): Promise<ShopReward[]> => {
-    try {
-      const res = await dbService.callJSONP('getShopRewards', {});
-      return res.rewards || [];
-    } catch (e) {
-      return [];
-    }
-  },
-
-  saveShopReward: async (reward: Partial<ShopReward>) => {
-    return await dbService.callJSONP('saveShopReward', { reward });
-  },
-
-  deleteShopReward: async (id: string) => {
-    return await dbService.callJSONP('deleteShopReward', { id });
+    const res = await dbService.callJSONP('getShopRewards', {});
+    return res.rewards || [];
   },
 
   redeemReward: async (userId: string, rewardId: string, cost: number) => {
@@ -149,25 +132,18 @@ export const dbService = {
   },
 
   getRedemptions: async (userId?: string): Promise<RedemptionRecord[]> => {
-    try {
-      const res = await dbService.callJSONP('getRedemptions', { userId });
-      return res.redemptions || [];
-    } catch (e) {
-      return [];
-    }
+    const res = await dbService.callJSONP('getRedemptions', { userId });
+    return res.redemptions || [];
   },
 
-  updateRedemptionStatus: async (id: string, status: string) => {
-    return await dbService.callJSONP('updateRedemptionStatus', { id, status });
+  getAllHealthLogs: async (): Promise<any[]> => {
+    const res = await dbService.callJSONP('getAllHealthLogs', {});
+    return res.data || [];
   },
 
   getUserItems: async (userId: string): Promise<UserItem[]> => {
-    try {
-      const res = await dbService.callJSONP('getUserItems', { userId });
-      return res.items || [];
-    } catch (e) {
-      return [];
-    }
+    const res = await dbService.callJSONP('getUserItems', { userId });
+    return res.items || [];
   },
 
   equipItem: async (userId: string, itemId: string) => {
@@ -178,52 +154,22 @@ export const dbService = {
     return await dbService.callJSONP('updateBaseEmoji', { userId, emoji });
   },
 
-  broadcastReward: async (exp: number, coins: number) => {
-    return await dbService.callJSONP('broadcastReward', { exp, coins });
-  },
-
-  updateAvatarStats: async (userId: string, expGain: number) => {
-    return await dbService.callJSONP('updateAvatarStats', { userId, expGain });
-  },
-
   openMysteryBox: async (userId: string, itemName: string) => {
     return await dbService.callJSONP('openMysteryBox', { userId, itemName });
   },
 
   getBoxLogs: async (userId: string): Promise<any[]> => {
-    try {
-      const res = await dbService.callJSONP('getBoxLogs', { userId });
-      return res.logs || [];
-    } catch (e) {
-      return [];
-    }
+    const res = await dbService.callJSONP('getBoxLogs', { userId });
+    return res.logs || [];
   },
 
-  getLeaderboard: async (className?: string): Promise<any[]> => {
-    try {
-      const res = await dbService.callJSONP('getLeaderboardData', { className });
-      return res.data || [];
-    } catch (e) {
-      return [];
-    }
-  },
-
-  // --- SOCIAL SYSTEM API ---
   getFriends: async (userId: string): Promise<any[]> => {
-    try {
-      const res = await dbService.callJSONP('getFriends', { userId });
-      return res.friends || [];
-    } catch (e) {
-      return [];
-    }
+    const res = await dbService.callJSONP('getFriends', { userId });
+    return res.friends || [];
   },
 
   addFriend: async (userId: string, friendId: string) => {
     return await dbService.callJSONP('addFriend', { userId, friendId });
-  },
-
-  removeFriend: async (userId: string, friendId: string) => {
-    return await dbService.callJSONP('removeFriend', { userId, friendId });
   },
 
   sendSocialAction: async (action: Omit<SocialAction, 'id' | 'is_read' | 'created_at'>) => {
@@ -231,15 +177,43 @@ export const dbService = {
   },
 
   getSocialActions: async (userId: string): Promise<SocialAction[]> => {
-    try {
-      const res = await dbService.callJSONP('getSocialActions', { userId });
-      return res.actions || [];
-    } catch (e) {
-      return [];
-    }
+    const res = await dbService.callJSONP('getSocialActions', { userId });
+    return res.actions || [];
   },
 
   markActionsAsRead: async (userId: string) => {
     return await dbService.callJSONP('markActionsAsRead', { userId });
+  },
+
+  saveBulkQuiz: async (questions: any[]) => {
+    return await dbService.callJSONP('saveBulkQuiz', { questions });
+  },
+
+  updateRedemptionStatus: async (id: string, status: string) => {
+    return await dbService.callJSONP('updateRedemptionStatus', { id, status });
+  },
+
+  deleteShopReward: async (id: string) => {
+    return await dbService.callJSONP('deleteShopReward', { id });
+  },
+
+  saveShopReward: async (reward: Partial<ShopReward>) => {
+    return await dbService.callJSONP('saveShopReward', reward);
+  },
+
+  deleteQuizQuestion: async (id: string) => {
+    return await dbService.callJSONP('deleteQuizQuestion', { id });
+  },
+
+  broadcastReward: async (exp: number, coin: number) => {
+    return await dbService.callJSONP('broadcastReward', { exp, coin });
+  },
+
+  saveCard: async (card: Partial<Card>) => {
+    return await dbService.callJSONP('saveCard', card);
+  },
+
+  deleteCard: async (id: string) => {
+    return await dbService.callJSONP('deleteCard', { id });
   }
 };

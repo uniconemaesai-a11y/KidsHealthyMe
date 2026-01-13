@@ -47,6 +47,26 @@ export interface AvatarData {
   base_emoji: string;
 }
 
+export interface Card {
+  id: string;
+  title: string;
+  description: string;
+  rarity: 'Common' | 'Rare' | 'Legendary';
+  image: string;
+  power_stats: {
+    health: number;
+    brain: number;
+    energy: number;
+  };
+}
+
+export interface UserCard {
+  id: string;
+  user_id: string;
+  card_id: string;
+  acquired_at: string;
+}
+
 export interface ShopReward {
   id: string;
   title: string;
@@ -99,22 +119,13 @@ export interface SocialAction {
   created_at: string;
 }
 
+// Added missing DailyQuest interface to fix import error in constants.ts
 export interface DailyQuest {
   id: string;
   title: string;
   description: string;
   goal: number;
-  type: 'steps' | 'water' | 'veggie' | 'sleep' | 'exercise';
+  type: string;
   reward: number;
   icon: string;
-}
-
-export interface ClassMission {
-  id: string;
-  title: string;
-  goal: number;
-  current: number;
-  reward: number;
-  icon: string;
-  deadline: string;
 }
